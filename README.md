@@ -1,3 +1,2 @@
-Talk Decks
-
-[TS Intro](2021-09%20Time%20Protection%20Intro/index.html)
+- [July 2021 - TS Monday Talk / TP Overview](2021-07%20TS%20Talk%20-%20Time%20Protection%20Model/htmldecks-master/public/index.html)
+- [September 2021 - TS Monday Talk - TP Intro](2021-09%20Time%20Protection%20Intro/index.html)
