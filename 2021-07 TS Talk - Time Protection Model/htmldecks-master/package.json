@@ -1,0 +1,40 @@
+{
+  "name": "htmldecks",
+  "version": "0.2.0",
+  "engine": {
+    "node": "4.1.1"
+  },
+  "description": "FOSS HTML Presentations, Hosted for Free",
+  "main": "server.js",
+  "dependencies": {
+    "body-parser": "~1.10.1",
+    "bcrypt-nodejs": "~0.0.3",
+    "consolidate": "~0.10.0",
+    "express": "~4.10.8",
+    "express-session": "~1.10.1",
+    "connect-flash": "~0.1.1",
+    "mongoose": "~3.8.21",
+    "passport": "~0.2.1",
+    "passport-local": "~1.0.0",
+    "swig": "~1.4.2",
+    "supervisor": "*",
+    "express-sslify": "*"
+  },
+  "devDependencies": {
+    "supertest": "^1.1.0",
+    "tape": "^4.2.1"
+  },
+  "scripts": {
+    "test": "./node_modules/.bin/tape tests/*.js",
+    "start": "supervisor index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/vzvenyach/htmldecks.git"
+  },
+  "author": "V. David Zvenyach",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vzvenyach/htmldecks/issues"
+  }
+}

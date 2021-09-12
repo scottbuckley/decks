@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+
+	<head>
+		<meta charset="utf-8">
+
+		<title>TS Talk July 2021 - Time Protection Model Overview</title>
+
+		<meta name="description" content="A talk I'm giving">
+		<meta name="author" content="Scott Buckley">
+
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/black.css" id="theme">
+
+		<!-- Code syntax highlighting -->
+		<link rel="stylesheet" href="lib/css/zenburn.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+
+		<!--[if lt IE 9]>
+		<script src="lib/js/html5shiv.js"></script>
+		<![endif]-->
+
+		<style type="text/css">
+			.reveal section img {
+				background:none;
+				border:none;
+				box-shadow:none;
+			}
+
+			.reveal table td.darrtd {
+				text-align:center;
+			}
+		</style>
+	</head>
+
+	<body>
+
+		<div class="reveal">
+
+			<!-- Any section element inside of this container is displayed as a slide -->
+			<div class="slides">
+				<section>
+					<h1>Modelling Time Protection</h1>
+					<h3>An overview our high-level approach</h3>
+					<p>
+						<small>By <a href="http://buck.ly">Scott Buckley</a></small>
+					</p>
+				</section>
+
+				<section data-markdown>
+					## This Talk
+					- Give an overview of the Time Protection project
+					- Show the model we have developed
+					- Describe the property we have proven
+				</section>
+
+				<section data-markdown>
+					# The Project
+				</section>
+
+				<section data-markdown>
+					## The Time Protection Project
+					- Mostly funded by ARC
+					- Postdocs: Scott Buckley + Rob Sison
+					- CIs: Toby Murray + Gernot + Gerwin
+					- Extra stuff from Curtis, Ryan et al.
+				</section>
+
+				<section data-markdown>
+					## Context
+					- Time channels are a thing
+					- We want to add time protection to seL4
+					- Qian's PhD: prototype of seL4 with time protection mechanisms
+					- This project aims to formalise these mechanisms
+					- Thus far it's mostly abstract work
+				</section>
+
+				<section data-markdown>
+					## Time Channels
+					- Different security domains shouldn't be able to see eachother
+					- Memory etc. is separated to make them independent
+					- Shared architecture (caches) provide side channels via time
+				</section>
+
+				<section data-markdown>
+					## Time Channels
+					- Users (non-kernel code) can glean information about the cache state via the clock
+					- User operations influence all sorts of caches, which are shared
+					- User A's operations can influence user B's operations, via these caches
+					- This is an information leak
+				</section>
+
+				<section data-markdown>
+					## Time Protection Strategies
+					- Flush level 1 cache
+					- Partition other caches
+					- Partition interrupts
+					- Pad allocated time to *predetermined* slices
+					- Pad all kernel operations to their WCET
+					- Account for late timer ticks with more padding
+					- Clone kernel memory for each domain*
+					- Prefetch* kernel shared memory
+				</section>
+
+				<section data-markdown>
+					# The Model
+				</section>
+
+				<section>
+					<h2>The Model</h2>
+					<table><tr><td>
+						<img src="img/asm1.png">
+					</td><td style="vertical-align:top;" data-markdown>
+						Three transitions:
+
+						- User operations
+						- Interrupt handling
+						- Domain-switch
+					</td>
+					</tr></table>
+				</section>
+
+				<section>
+					<section>
+						<h2>Transitions = State Monads</h2>
+						<table><tr><td>
+							<img src="img/asm1.png" width="300px">
+						</td><td style="vertical-align:top;" data-markdown>
+							- Domain-switch: fully defined
+							- Userop: underdefined*
+							- Handle IRQ: underdefined*
+
+							*underdefined = quarantined
+						</td>
+						</tr></table>
+					</section>
+					<section data-markdown>
+						## Quarantining a Monad
+						- Start with a totally unrestricted monad
+						- Zero out all unreadable* state
+						- Run the monad
+						- Restore all unwriteable* state
+
+						*usually the same measure
+					</section>
+				</section>
+
+
+				<section>
+					<h2>The State</h2>
+					<table><tr><td>
+						<img src="img/state.png" width="300px">
+					</td><td style="vertical-align:top;" data-markdown>
+						- Memory
+						- Flushable Cache
+						- Partitionable Cache
+						- Time (clock)
+						- Device states
+						- Current domain
+						- Most recent interrupt requester
+					</td>
+					</tr></table>
+				</section>
+
+				<section data-markdown>
+					## The Property
+
+					We want to know that the actions of B are undetectable by A.
+				</section>
+
+				<section>
+					<span data-markdown>
+					## The Property
+
+					If two states *s* and *t* are equivalent according to some observer *u*, then any transition in the system will produce new states *s'* and *t'* that are also equivalent to *u*.
+					</span>
+					<table>
+						<tr><td>s</td><td>&thickapprox;</td><td>t</td></tr>
+						<tr><td>&darr;</td><td></td><td>&darr;</td></tr>
+						<tr><td>s'</td><td>&thickapprox;</td><td>t'</td></tr>
+					</table>
+					<span class="fragment" data-markdown>
+						Translates to:
+
+						- My actions are only affected by my data
+						- My data is unaffected by the actions of others
+					</span>
+				</section>
+
+				<section>
+					<section>
+						<h2>A's Unwinding Relation</h2>
+						<div>B's memory is different...</div>
+						<table>
+							<tr><td><img src="img/state_memB1.png" width="200px"></td><td style="vertical-align:middle;">&ne;</td><td><img src="img/state_memB2.png" width="200px"></td></tr>
+							<tr class="fragment"><td></td><td></td><td>... but ...</td></tr>
+							<tr class="fragment"><td></td><td></td><td><img src="img/state_memB1_A.png" width="200px"></td><td style="vertical-align:middle;">&thickapprox;</td><td><img src="img/state_memB2_A.png" width="200px"></td></tr>
+						</table>
+						<div class="fragment">... that is indistinguishable to A</div>
+					</section>
+					<section>
+						<h2>B's Unwinding Relation</h2>
+						<div>B's memory is different...</div>
+						<table>
+							<tr><td><img src="img/state_memB1.png" width="200px"></td><td style="vertical-align:middle;">&ne;</td><td><img src="img/state_memB2.png" width="200px"></td></tr>
+							<tr class=""><td><img src="img/state_mem_uwrB1.png" width="200px"></td><td style="vertical-align:middle;">!&thickapprox;</td><td><img src="img/state_mem_uwrB2.png" width="200px"></td></tr>
+						</table>
+						<div class="">... so these states don't hold B's UWR</div>
+					</section>
+				</section>
+
+				<section>
+					<section>
+						<h2>Confidentiality</h2>
+						(userop transition, <i>u</i> not running)
+						<table>
+							<tr>
+								<td><img src="img/state_memB1_A.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/state_memB2_A.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/state_memB1_A'.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/state_memB2_A'.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>Other userops must not affect *u*'s memory</span>
+					</section>
+
+					<section>
+						<h2>Confidentiality</h2>
+						(userop transition, <i>u</i> is running)
+						<table>
+							<tr>
+								<td><img src="img/state_memB1_A.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/state_memB2_A.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/state_memB1_A''.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/state_memB2_A''.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>*u*'s actions must depend only on its memory</span>
+					</section>
+				</section>
+
+				<!--
+				<section>
+					<h2>Confidentiality for Memory</h2>
+					<table><tr><td>
+						<table>
+							<tr>
+								<td><img src="img/state_memB1_A.png" width="100px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/state_memB2_A.png" width="100px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/state_memB1_A'.png" width="100px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/state_memB2_A'.png" width="100px"></td>
+							</tr>
+						</table>
+					</td><td data-markdown style="vertical-align:top;">
+						To show this, we need to know:
+
+						- A's actions only change A's memory
+						- A's actions only depend on A's memory
+						- Kernel ops don't change user memory
+					</td></tr></table>
+				</section>-->
+
+				
+				<section data-markdown>
+					## Flushable Cache
+					- Level 1 cache
+					- Observable by the *running* user
+					- Modified by most operations (all userops)
+					- Is flushed at the end of domain-switch
+					- Would break confidentiality if it was not flushed
+				</section>
+
+				<section>
+					<section>
+						<h2>Confidentiality (w/ Flushing)</h2>
+						(userop transition, <i>u</i> not running)
+						<table>
+							<tr>
+								<td><img src="img/flush_notrunning_s.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/flush_notrunning_t.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/flush_notrunning_s'.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/flush_notrunning_t'.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>Trivial: Fch not observable unless running</span>
+					</section>
+
+					<section>
+						<!-- <h2>Confidentiality (w/ Flushing)</h2> -->
+						(userop transition, <i>u</i> is running)
+						<table>
+							<tr>
+								<td><img src="img/flush_running_s.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/flush_running_t.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/flush_running_s'.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/flush_running_t'.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>Changes to Fch must depend *only* on observable state</span>
+					</section>
+
+					<section>
+						<!-- <h2>Confidentiality (w/ Flushing)</h2> -->
+						(domain-switch transition, <i>x</i> to <i>u</i> - without flushing)
+						<table>
+							<tr>
+								<td><img src="img/flush_switch1_s.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/flush_switch1_t.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/flush_switch1_s'.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/flush_switch1_t'.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>False! Previous user's Fch changes are leaked</span>
+					</section>
+
+					<section>
+						<!-- <h2>Confidentiality (w/ Flushing)</h2> -->
+						(domain-switch transition, <i>x</i> to <i>u</i> - with flushing)
+						<table>
+							<tr>
+								<td><img src="img/flush_switch1_s.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/flush_switch1_t.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/flush_switch2_s'.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/flush_switch2_t'.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>Fch must be flushed during domain-switch</span>
+					</section>
+				</section>
+
+
+				<section data-markdown>
+					## Partitionable Cache
+					- Level 2+ caches
+					- Coloured, observable to users (similar to memory)
+					- Modified* by most operations
+					- Would break confidentiality if not coloured
+				</section>
+
+				<section>
+					<section>
+						<h2>Confidentiality (w/ Fch+Pch)</h2>
+						(userop transition, <i>u</i> not running)
+						<table>
+							<tr>
+								<td><img src="img/part_notrunning_s.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/part_notrunning_t.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/part_notrunning_s'.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/part_notrunning_t'.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>Other userops must not affect *u*'s Pch</span>
+					</section>
+
+					<section>
+						(userop transition, <i>u</i> is running)
+						<table>
+							<tr>
+								<td><img src="img/part_running_s.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/part_running_t.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/part_running_s'.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/part_running_t'.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>Changes to Pch must depend *only* on observable state</span>
+					</section>
+				</section>
+
+				<section>
+					<span data-markdown>
+						## Time
+						- Broken into slices
+						- Totally observable to currently running user
+						- Slice index is observable to everybody
+						- Slices have dedicated domain-switch portion
+					</span>
+					<img src="img/time_slices.png" style="padding-top:1em;">
+					<span data-markdown>
+						time: 34, slice: 2
+					</span>
+				</section>
+
+				<section data-markdown>
+					## Things we need for time confidentiality
+					- No operations move time backwards
+					- Userop transitions don't go past their allocation
+					- Interrupt handling obeys a WCET
+					- Domain-switch obeys a WCET
+					- Time is padded to the next slice after domain-switch
+					- The slices (schedule) are predetermined
+					- The domain-switch padding takes into account that a timer tick might be a little late
+				</section>
+
+
+				
+				<section>
+					<section>
+						<h2>Confidentiality (w/ Fch+Pch+Time)</h2>
+						(userop transition, <i>u</i> not running)
+						<table>
+							<tr>
+								<td><img src="img/time_notrunning_s.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/time_notrunning_t.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/time_notrunning_s'.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/time_notrunning_t'.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>Userop must never change time slice</span>
+					</section>
+
+					<section>
+						(userop transition, <i>u</i> is running)
+						<table>
+							<tr>
+								<td><img src="img/time_running_s.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/time_running_t.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/time_running_s'.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/time_running_t'.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>Time taken must depend *only* on observable state</span>
+					</section>
+
+					<section>
+						(domain-switch transition, <i>x</i> to <i>u</i> - without padding)
+						<table>
+							<tr>
+								<td><img src="img/time_switch_s.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/time_switch_t.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/time_switch_s'.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/time_switch_t'.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>False! Previous user's time (+switch time) is leaked</span>
+					</section>
+
+
+					<section>
+						(domain-switch transition, <i>x</i> to <i>u</i> - with padding)
+						<table>
+							<tr>
+								<td><img src="img/time_switch_s.png" width="200px">
+								</td><td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/time_switch_t.png" width="200px"></td>
+							</tr>
+							<tr>
+								<td class="darrtd">&darr;</td>
+								<td></td>
+								<td class="darrtd">&darr;</td>
+							</tr>
+							<tr>
+								<td><img src="img/time_switch_s''.png" width="200px"></td>
+								<td style="vertical-align:middle;">&thickapprox;</td>
+								<td><img src="img/time_switch_t''.png" width="200px"></td>
+							</tr>
+						</table>
+						<span data-markdown>Time must be padded to the start of the next slice</span>
+					</section>
+				</section>
+
+				<section data-markdown>
+					## Other things to consider
+					- Devs are also partitioned like Mem and Pch
+					- IntD is only visible to currently-running user, and only depends on that user's observable state
+					- Kernel shared memory will exist on more than one Pch colour. We need to do some magic to deal with this.
+				</section>
+
+
+				<section data-markdown>
+					# Questions?
+				</section>
+
+			</div>
+
+		</div>
+
+		<script src="lib/js/head.min.js"></script>
+		<script src="js/reveal.js"></script>
+
+		<script>
+
+			// Full list of configuration options available at:
+			// https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+
+				transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+				// Optional reveal.js plugins
+				dependencies: [
+					{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/highlight/highlight.js', async: true, condition: function() { return !!document.querySelector( 'pre code' ); }, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'plugin/zoom-js/zoom.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true }
+				]
+			});
+
+		</script>
+
+	</body>
+</html>
